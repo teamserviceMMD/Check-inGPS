@@ -2,9 +2,11 @@
 <html lang="th"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ตัวติดตามการเคลื่อนไหว GPS</title>
+  <title>ระบบสแกน QR Code เช็คอิน GPS</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+  <!-- เพิ่มไลบรารีสแกน QR Code -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&amp;family=Fraunces:opsz,wght@9..144,700&amp;display=swap" rel="stylesheet">
   <style>
     :root {
@@ -126,9 +128,9 @@
    <header class="app-content pb-0" aria-labelledby="app-title">
     <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
      <div>
-      <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">LOCAL GPS / MOTION CHECK</p>
-      <h1 id="app-title" class="heading-font m-0 text-4xl leading-tight sm:text-5xl" style="color: rgb(20, 35, 31); font-weight: 700; font-size: 32px;">ตัวติดตามการเคลื่อนไหว GPS</h1>
-      <p class="mt-3 max-w-2xl text-base leading-7" style="color: rgb(82, 101, 94); font-size: 17px; line-height: 1.6;">ตรวจสอบตำแหน่งปัจจุบันอย่างต่อเนื่อง พร้อมบันทึกข้อมูลเข้า Google Sheets อัตโนมัติ</p>
+      <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">QR CODE GPS CHECK-IN</p>
+      <h1 id="app-title" class="heading-font m-0 text-4xl leading-tight sm:text-5xl" style="color: rgb(20, 35, 31); font-weight: 700; font-size: 32px;">ระบบสแกนคิวอาร์โค้ดเช็คอิน</h1>
+      <p class="mt-3 max-w-2xl text-base leading-7" style="color: rgb(82, 101, 94); font-size: 17px; line-height: 1.6;">สแกน QR Code ประจำตัวเพื่อบันทึกพิกัดตำแหน่งเข้า Google Sheets อัตโนมัติ</p>
      </div>
      <div class="tracking-indicator flex shrink-0 items-center gap-3 text-sm font-semibold" id="tracking-indicator" aria-hidden="true">
       <div class="relative flex h-10 w-10 items-center justify-center">
@@ -141,46 +143,52 @@
     <section class="status-panel rounded-3xl p-6 sm:p-8" aria-labelledby="status-heading" style="background: rgb(232, 243, 236);">
      <div class="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
       <div>
-       <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">สถานะการติดตาม</p>
+       <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">สถานะการเช็คอิน</p>
        <h2 id="status-heading" class="heading-font m-0 text-3xl leading-tight" style="color: rgb(20, 35, 31); font-weight: 700; font-size: 24px;">ตำแหน่งของคุณตอนนี้</h2>
        <div class="mt-5" aria-live="polite">
-        <div id="status-idle" class="status-badge is-active" style="background: rgb(225, 230, 227); color: rgb(82, 97, 92); font-weight: 700; font-size: 15px;">ยังไม่ได้เริ่มติดตาม</div>
-        <div id="status-still" class="status-badge" style="background: rgb(216, 241, 225); color: rgb(30, 106, 71); font-weight: 700; font-size: 15px;">● ยังอยู่ที่เดิม</div>
-        <div id="status-moving" class="status-badge" style="background: rgb(255, 234, 215); color: rgb(185, 82, 22); font-weight: 700; font-size: 15px;">● กำลังเคลื่อนที่</div>
+        <div id="status-idle" class="status-badge is-active" style="background: rgb(225, 230, 227); color: rgb(82, 97, 92); font-weight: 700; font-size: 15px;">ยังไม่ได้สแกน</div>
+        <div id="status-still" class="status-badge" style="background: rgb(216, 241, 225); color: rgb(30, 106, 71); font-weight: 700; font-size: 15px;">● เช็คอินสำเร็จ</div>
+        <div id="status-moving" class="status-badge" style="background: rgb(255, 234, 215); color: rgb(185, 82, 22); font-weight: 700; font-size: 15px;">● กำลังประมวลผล</div>
        </div>
-       <p id="status-message" class="mt-5 max-w-xl text-sm leading-6 text-slate-600" aria-live="polite">กรุณาระบุรหัสพนักงานและกดเริ่มติดตาม</p>
+       <p id="status-message" class="mt-5 max-w-xl text-sm leading-6 text-slate-600" aria-live="polite">กรุณากดปุ่ม "เปิดกล้องสแกน QR Code" เพื่อเริ่มเช็คอิน</p>
       </div>
       <div class="flex flex-col gap-3 sm:flex-row lg:flex-col">
-       <button id="start-button" type="button" class="btn-primary focus-ring inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold shadow-sm" style="background: rgb(39, 123, 87); color: rgb(255, 255, 255);"> <i data-lucide="play" class="h-4 w-4"></i> <span style="font-size: 16px;">เริ่มติดตาม</span> </button> 
-       <button id="stop-button" type="button" class="focus-ring hidden items-center justify-center gap-2 rounded-xl border px-5 py-3 font-bold transition hover:bg-slate-100" style="background: rgb(255, 255, 255); color: rgb(52, 69, 62);"> <i data-lucide="square" class="h-4 w-4"></i> <span style="font-size: 16px;">หยุดติดตาม</span> </button>
+       <button id="start-button" type="button" class="btn-primary focus-ring inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold shadow-sm" style="background: rgb(39, 123, 87); color: rgb(255, 255, 255);"> <i data-lucide="camera" class="h-4 w-4"></i> <span style="font-size: 16px;">เปิดกล้องสแกน QR</span> </button> 
+       <button id="stop-button" type="button" class="focus-ring hidden items-center justify-center gap-2 rounded-xl border px-5 py-3 font-bold transition hover:bg-slate-100" style="background: rgb(255, 255, 255); color: rgb(52, 69, 62);"> <i data-lucide="square" class="h-4 w-4"></i> <span style="font-size: 16px;">ปิดกล้อง</span> </button>
       </div>
      </div>
     </section>
+
+    <!-- ส่วนแสดงกล้องสแกน QR Code -->
+    <section id="scanner-section" class="mt-6 hidden rounded-2xl border p-6 shadow-sm text-center" style="background: rgb(255, 255, 255);">
+      <h3 class="font-bold text-lg mb-3" style="color: rgb(20, 35, 31);">สแกน QR Code รหัสพนักงาน</h3>
+      <div id="reader" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
+    </section>
+
     <section class="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]" aria-label="การตั้งค่าและข้อมูลตำแหน่ง">
      <aside class="rounded-2xl border p-6 shadow-sm" style="background: rgb(255, 255, 255);">
       <div class="flex items-center gap-3">
        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
-        <i data-lucide="sliders-horizontal" class="h-5 w-5"></i>
+        <i data-lucide="user-check" class="h-5 w-5"></i>
        </div>
        <div>
         <h2 class="m-0 font-bold" style="color: rgb(20, 35, 31); font-size: 18px;">ข้อมูลพนักงาน</h2>
-        <p class="mt-1 text-sm leading-5" style="color: rgb(96, 113, 108);">ระบุรหัสเพื่อบันทึกข้อมูลลงชีต</p>
+        <p class="mt-1 text-sm leading-5" style="color: rgb(96, 113, 108);">ดึงข้อมูลอัตโนมัติจากการสแกน</p>
        </div>
       </div>
-      <form id="threshold-form" class="mt-6">
-       <label for="employee-id-input" class="block text-sm font-bold" style="color: rgb(36, 54, 47); font-size: 14px;">รหัสพนักงาน</label>
-       <input id="employee-id-input" class="focus-ring mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800" type="text" maxlength="40" autocomplete="off" placeholder="เช่น EMP001">
-       <p class="mt-2 text-sm leading-6" style="color: rgb(96, 113, 108); font-size: 14px;">ข้อมูลพนักงานนี้จะถูกส่งไปพร้อมกับพิกัด GPS</p>
+      <div class="mt-6">
+       <label class="block text-sm font-bold" style="color: rgb(36, 54, 47); font-size: 14px;">รหัสพนักงานที่สแกนได้</label>
+       <div id="employee-id-display" class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 font-semibold text-slate-800">—</div>
+       <p class="mt-2 text-sm leading-6" style="color: rgb(96, 113, 108); font-size: 14px;">ระบบจะจับพิกัด GPS ปัจจุบันส่งเข้าชีตทันทีหลังสแกนสำเร็จ</p>
        
-       <!-- ซ่อนค่า Threshold ไว้แต่ยังคงโค้ดไว้คำนวณ -->
        <div class="hidden">
         <input id="threshold-input" type="number" value="20">
        </div>
-      </form>
+      </div>
       <div class="mt-6 rounded-xl p-4" style="background: rgb(241, 246, 243); color: rgb(39, 123, 87);">
        <div class="flex gap-3">
         <i data-lucide="shield-check" class="mt-0.5 h-5 w-5 shrink-0"></i>
-        <p class="m-0 text-sm leading-6" style="color: rgb(56, 97, 77);">ระบบจะส่งข้อมูลพิกัดและสถานะไปยัง Google Sheets ทุกครั้งที่มีการอัปเดตตำแหน่ง</p>
+        <p class="m-0 text-sm leading-6" style="color: rgb(56, 97, 77);">บันทึกข้อมูลพิกัดและเวลาลง Google Sheets ทันทีที่สแกน QR Code ผ่าน</p>
        </div>
       </div>
      </aside>
@@ -227,18 +235,14 @@
       const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx9JW6qXs8B6fA7xlU3mVgXAQrgkeUaWjDPqkB6ZKGBDZbfHwSZAr257p-Xw80db3Ls/exec";
 
       const state = {
-        watchId: null,
         employeeId: '',
-        isTracking: false,
-        referencePoint: null,
-        totalDistance: 0,
-        lastSentTime: 0 // เพิ่มตัวแปรสำหรับเก็บบันทึกเวลาที่ส่งล่าสุด
+        totalDistance: 0
       };
 
       const elements = {
         start: document.getElementById('start-button'),
         stop: document.getElementById('stop-button'),
-        threshold: document.getElementById('threshold-input'),
+        scannerSection: document.getElementById('scanner-section'),
         message: document.getElementById('status-message'),
         indicator: document.getElementById('tracking-indicator'),
         latitude: document.getElementById('latitude-value'),
@@ -246,7 +250,7 @@
         accuracy: document.getElementById('accuracy-value'),
         distance: document.getElementById('distance-value'),
         syncStatus: document.getElementById('sync-status'),
-        employeeInput: document.getElementById('employee-id-input'),
+        employeeDisplay: document.getElementById('employee-id-display'),
         employeeValue: document.getElementById('employee-value'),
         badges: {
           idle: document.getElementById('status-idle'),
@@ -255,6 +259,8 @@
         }
       };
 
+      let html5QrCode = null;
+
       function setStatus(status, message) {
         Object.entries(elements.badges).forEach(([name, badge]) => {
           badge.classList.toggle('is-active', name === status);
@@ -262,45 +268,14 @@
         elements.message.textContent = message;
       }
 
-      function setTrackingControls(isTracking) {
-        state.isTracking = isTracking;
-        elements.start.classList.toggle('hidden', isTracking);
-        elements.stop.classList.toggle('hidden', !isTracking);
-        elements.start.classList.toggle('inline-flex', !isTracking);
-        elements.stop.classList.toggle('inline-flex', isTracking);
-        elements.indicator.classList.toggle('is-tracking', isTracking);
-      }
-
-      function getThreshold() {
-        return Number(elements.threshold.value) || 20;
-      }
-
-      function haversineMeters(pointA, pointB) {
-        const earthRadius = 6371000;
-        const toRadians = degrees => degrees * Math.PI / 180;
-        const latitudeDelta = toRadians(pointB.latitude - pointA.latitude);
-        const longitudeDelta = toRadians(pointB.longitude - pointA.longitude);
-        const a =
-          Math.sin(latitudeDelta / 2) ** 2 +
-          Math.cos(toRadians(pointA.latitude)) *
-          Math.cos(toRadians(pointB.latitude)) *
-          Math.sin(longitudeDelta / 2) ** 2;
-        return earthRadius * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-      }
-
-      function formatMeters(value) {
-        if (value >= 1000) return (value / 1000).toFixed(2) + ' กม.';
-        return Math.round(value) + ' ม.';
-      }
-
-      function sendDataToGoogleSheet(point, msg) {
+      function sendDataToGoogleSheet(point, msg, empId) {
         if (!WEB_APP_URL || WEB_APP_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
           elements.syncStatus.textContent = "ยังไม่ได้ตั้งค่า URL";
           return;
         }
 
         const payload = {
-          employeeId: state.employeeId,
+          employeeId: empId,
           latitude: point.latitude,
           longitude: point.longitude,
           accuracy: point.accuracy,
@@ -318,7 +293,7 @@
           body: JSON.stringify(payload)
         })
         .then(() => {
-          elements.syncStatus.textContent = "บันทึกแล้ว ✓";
+          elements.syncStatus.textContent = "บันทึกสำเร็จ ✓";
         })
         .catch(error => {
           console.error('Error:', error);
@@ -326,115 +301,82 @@
         });
       }
 
-      function handlePosition(position) {
-        const point = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        };
-        const threshold = getThreshold();
+      // ฟังก์ชันเมื่อสแกน QR Code สำเร็จ
+      function onScanSuccess(decodedText, decodedResult) {
+        state.employeeId = decodedText.trim();
+        elements.employeeDisplay.textContent = state.employeeId;
+        elements.employeeValue.textContent = state.employeeId;
 
-        elements.latitude.textContent = point.latitude.toFixed(6) + '°';
-        elements.longitude.textContent = point.longitude.toFixed(6) + '°';
-        elements.accuracy.textContent = '± ' + Math.round(point.accuracy) + ' ม.';
+        // ปิดกล้องหลังสแกนสำเร็จ
+        stopScanner();
 
-        let statusMsg = "";
+        setStatus('moving', 'กำลังดึงพิกัด GPS ปัจจุบันเพื่อเช็คอิน…');
 
-        if (!state.referencePoint) {
-          state.referencePoint = point;
-          elements.distance.textContent = '0 ม.';
-          statusMsg = 'ตั้งจุดอ้างอิงล่าสุดแล้ว กำลังตรวจสอบการเปลี่ยนแปลงตำแหน่ง';
-          setStatus('still', statusMsg);
-          
-          // บันทึกทันทีเมื่อเริ่มกดครั้งแรก
-          state.lastSentTime = Date.now();
-          sendDataToGoogleSheet(point, statusMsg);
-          return;
-        }
-
-        const referenceDistance = haversineMeters(state.referencePoint, point);
-
-        if (referenceDistance > threshold) {
-          state.totalDistance += referenceDistance;
-          state.referencePoint = point;
-          elements.distance.textContent = formatMeters(state.totalDistance);
-          statusMsg = 'ตรวจพบการเคลื่อนที่เกินเกณฑ์ ' + threshold + ' เมตร';
-          setStatus('moving', statusMsg);
-        } else {
-          elements.distance.textContent = formatMeters(state.totalDistance);
-          statusMsg = 'ตำแหน่งยังอยู่ในระยะความคลาดเคลื่อน';
-          setStatus('still', statusMsg);
-        }
-
-        // ⏱️ เช็คเวลา: ส่งข้อมูลก็ต่อเมื่อเวลาผ่านไปครบ 1 ชั่วโมง (3,600,000 มิลลิวินาที)
-        const currentTime = Date.now();
-        const oneHourInMs = 60 * 60 * 1000; 
-
-        if (currentTime - state.lastSentTime >= oneHourInMs) {
-          state.lastSentTime = currentTime;
-          sendDataToGoogleSheet(point, statusMsg);
-        }
-      }
-
-      function handleError(error) {
-        setTrackingControls(false);
-        if (state.watchId !== null) {
-          navigator.geolocation.clearWatch(state.watchId);
-          state.watchId = null;
-        }
-        const messages = {
-          1: 'ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาอนุญาตสิทธิ์ GPS',
-          2: 'ไม่สามารถอ่านตำแหน่งปัจจุบันได้ โปรดตรวจสอบสัญญาณ',
-          3: 'การอ่านตำแหน่งใช้เวลานานเกินไป'
-        };
-        setStatus('idle', messages[error.code] || 'เกิดข้อผิดพลาดขณะอ่านตำแหน่ง');
-      }
-
-      function startTracking() {
-        const employeeId = elements.employeeInput.value.trim();
-        if (!employeeId) {
-          setStatus('idle', 'กรุณาระบุรหัสพนักงานก่อนเริ่มติดตาม');
-          elements.employeeInput.focus();
-          return;
-        }
-        state.employeeId = employeeId;
-        elements.employeeValue.textContent = employeeId;
-
+        // ดึงพิกัด GPS ปัจจุบันครั้งเดียวเพื่อเช็คอิน
         if (!('geolocation' in navigator)) {
           setStatus('idle', 'เบราว์เซอร์นี้ไม่รองรับการอ่านตำแหน่งด้วย GPS');
           return;
         }
 
-        state.referencePoint = null;
-        state.totalDistance = 0;
-        state.lastSentTime = 0; // รีเซ็ตเวลาเมื่อเริ่มใหม่
-        elements.distance.textContent = '0 ม.';
-        setTrackingControls(true);
-        setStatus('still', 'กำลังขอสิทธิ์และค้นหาตำแหน่งปัจจุบัน…');
+        navigator.geolocation.getCurrentPosition((position) => {
+          const point = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
 
-        state.watchId = navigator.geolocation.watchPosition(handlePosition, handleError, {
+          elements.latitude.textContent = point.latitude.toFixed(6) + '°';
+          elements.longitude.textContent = point.longitude.toFixed(6) + '°';
+          elements.accuracy.textContent = '± ' + Math.round(point.accuracy) + ' ม.';
+          elements.distance.textContent = '0 ม.';
+
+          const statusMsg = 'สแกน QR Code เช็คอินสำเร็จ';
+          setStatus('still', statusMsg);
+          sendDataToGoogleSheet(point, statusMsg, state.employeeId);
+
+        }, (error) => {
+          setStatus('idle', 'ไม่สามารถเข้าถึงตำแหน่ง GPS ได้: ' + error.message);
+        }, {
           enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 20000
+          timeout: 10000
         });
       }
 
-      function stopTracking() {
-        if (state.watchId !== null) {
-          navigator.geolocation.clearWatch(state.watchId);
-          state.watchId = null;
-        }
-        setTrackingControls(false);
-        setStatus('idle', 'หยุดติดตามแล้ว');
+      function startScanner() {
+        elements.scannerSection.classList.remove('hidden');
+        elements.start.classList.add('hidden');
+        elements.stop.classList.remove('hidden');
+        elements.stop.classList.add('inline-flex');
+        elements.indicator.classList.add('is-tracking');
+
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onScanSuccess,
+          (errorMessage) => { /* ข้อผิดพลาดระหว่างสแกนข้ามได้ */ }
+        ).catch(err => {
+          setStatus('idle', 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง');
+        });
       }
 
-      elements.employeeInput.addEventListener('input', () => {
-        state.employeeId = elements.employeeInput.value.trim();
-        elements.employeeValue.textContent = state.employeeId || '—';
-      });
+      function stopScanner() {
+        if (html5QrCode) {
+          html5QrCode.stop().then(() => {
+            html5QrCode.clear();
+          }).catch(err => {
+            console.error("Failed to clear html5QrCode", err);
+          });
+        }
+        elements.scannerSection.classList.add('hidden');
+        elements.start.classList.remove('hidden');
+        elements.start.classList.add('inline-flex');
+        elements.stop.classList.add('hidden');
+        elements.indicator.classList.remove('is-tracking');
+      }
 
-      elements.start.addEventListener('click', startTracking);
-      elements.stop.addEventListener('click', stopTracking);
+      elements.start.addEventListener('click', startScanner);
+      elements.stop.addEventListener('click', stopScanner);
 
       lucide.createIcons();
     })();
