@@ -224,7 +224,6 @@
 
   <script>
     (() => {
-      // ⚠️ นำ URL จาก Google Apps Script (Web App) มาใส่ตรงนี้
       const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx9JW6qXs8B6fA7xlU3mVgXAQrgkeUaWjDPqkB6ZKGBDZbfHwSZAr257p-Xw80db3Ls/exec";
 
       const state = {
@@ -232,7 +231,8 @@
         employeeId: '',
         isTracking: false,
         referencePoint: null,
-        totalDistance: 0
+        totalDistance: 0,
+        lastSentTime: 0 // เพิ่มตัวแปรสำหรับเก็บบันทึกเวลาที่ส่งล่าสุด
       };
 
       const elements = {
@@ -293,7 +293,6 @@
         return Math.round(value) + ' ม.';
       }
 
-      // ฟังก์ชันส่งข้อมูลไปยัง Google Sheets (ผ่าน Google Apps Script)
       function sendDataToGoogleSheet(point, msg) {
         if (!WEB_APP_URL || WEB_APP_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
           elements.syncStatus.textContent = "ยังไม่ได้ตั้งค่า URL";
@@ -346,6 +345,9 @@
           elements.distance.textContent = '0 ม.';
           statusMsg = 'ตั้งจุดอ้างอิงล่าสุดแล้ว กำลังตรวจสอบการเปลี่ยนแปลงตำแหน่ง';
           setStatus('still', statusMsg);
+          
+          // บันทึกทันทีเมื่อเริ่มกดครั้งแรก
+          state.lastSentTime = Date.now();
           sendDataToGoogleSheet(point, statusMsg);
           return;
         }
@@ -358,12 +360,18 @@
           elements.distance.textContent = formatMeters(state.totalDistance);
           statusMsg = 'ตรวจพบการเคลื่อนที่เกินเกณฑ์ ' + threshold + ' เมตร';
           setStatus('moving', statusMsg);
-          sendDataToGoogleSheet(point, statusMsg);
         } else {
           elements.distance.textContent = formatMeters(state.totalDistance);
           statusMsg = 'ตำแหน่งยังอยู่ในระยะความคลาดเคลื่อน';
           setStatus('still', statusMsg);
-          // ส่งข้อมูลเป็นระยะ หรือส่งทุกครั้งที่มีการขยับ
+        }
+
+        // ⏱️ เช็คเวลา: ส่งข้อมูลก็ต่อเมื่อเวลาผ่านไปครบ 1 ชั่วโมง (3,600,000 มิลลิวินาที)
+        const currentTime = Date.now();
+        const oneHourInMs = 60 * 60 * 1000; 
+
+        if (currentTime - state.lastSentTime >= oneHourInMs) {
+          state.lastSentTime = currentTime;
           sendDataToGoogleSheet(point, statusMsg);
         }
       }
@@ -399,6 +407,7 @@
 
         state.referencePoint = null;
         state.totalDistance = 0;
+        state.lastSentTime = 0; // รีเซ็ตเวลาเมื่อเริ่มใหม่
         elements.distance.textContent = '0 ม.';
         setTrackingControls(true);
         setStatus('still', 'กำลังขอสิทธิ์และค้นหาตำแหน่งปัจจุบัน…');
