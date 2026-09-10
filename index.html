@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="th"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตัวติดตามการเคลื่อนไหว GPS</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.577.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&amp;family=Fraunces:opsz,wght@9..144,700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #14231f;
+      --muted: #60716c;
+      --line: #d8e4df;
+      --paper: #f7faf8;
+      --green: #277b57;
+      --orange: #d66a21;
+      --grey: #74817d;
+    }
+
+    * { box-sizing: border-box; }
+    body { font-family: "Work Sans", sans-serif; color: var(--ink); }
+    button, input { font: inherit; }
+
+    .gps-shell {
+      width: 100%;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(circle at 90% 7%, rgba(106, 175, 130, 0.18), transparent 29rem),
+        radial-gradient(circle at 5% 95%, rgba(240, 159, 78, 0.15), transparent 24rem);
+    }
+
+    .topographic {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      background-image:
+        repeating-radial-gradient(ellipse at 11% 12%, transparent 0 17px, rgba(56, 105, 77, 0.13) 18px 19px, transparent 20px 33px),
+        repeating-radial-gradient(ellipse at 90% 85%, transparent 0 24px, rgba(56, 105, 77, 0.10) 25px 26px, transparent 27px 47px);
+      background-size: 330px 260px, 460px 360px;
+    }
+
+    .app-content {
+      width: 100%;
+      max-width: 1120px;
+      margin: 0 auto;
+      position: relative;
+      padding: 34px 24px 40px;
+    }
+
+    .eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .heading-font { font-family: "Fraunces", serif; }
+
+    .status-panel {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .status-badge {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-weight: 700;
+    }
+
+    .status-badge.is-active { display: inline-flex; }
+
+    .metric-card {
+      border: 1px solid var(--line);
+      min-height: 130px;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(23, 62, 43, 0.08);
+    }
+
+    .metric-value {
+      font-variant-numeric: tabular-nums;
+      word-break: break-word;
+    }
+
+    .pulse-ring {
+      animation: pulse-ring 2.2s ease-out infinite;
+      transform-origin: center;
+    }
+
+    @keyframes pulse-ring {
+      0%, 100% { opacity: .35; transform: scale(.92); }
+      50% { opacity: .1; transform: scale(1.12); }
+    }
+
+    .tracking-indicator.is-tracking .pulse-ring { animation-play-state: running; }
+    .tracking-indicator:not(.is-tracking) .pulse-ring { animation-play-state: paused; opacity: .12; }
+
+    .focus-ring:focus-visible {
+      outline: 3px solid rgba(39, 123, 87, .35);
+      outline-offset: 3px;
+    }
+
+    .btn-primary { transition: transform 180ms ease, filter 180ms ease; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(.95); }
+    .btn-primary:disabled { cursor: wait; opacity: .65; }
+
+    @media (max-width: 640px) {
+      .app-content { padding: 24px 16px 30px; }
+    }
+  </style>
+</head>
+<body class="w-full m-0" style="background: rgb(247, 250, 248);">
+  <div class="gps-shell">
+   <div class="topographic"></div>
+   <header class="app-content pb-0" aria-labelledby="app-title">
+    <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+     <div>
+      <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">LOCAL GPS / MOTION CHECK</p>
+      <h1 id="app-title" class="heading-font m-0 text-4xl leading-tight sm:text-5xl" style="color: rgb(20, 35, 31); font-weight: 700; font-size: 32px;">ตัวติดตามการเคลื่อนไหว GPS</h1>
+      <p class="mt-3 max-w-2xl text-base leading-7" style="color: rgb(82, 101, 94); font-size: 17px; line-height: 1.6;">ตรวจสอบตำแหน่งปัจจุบันอย่างต่อเนื่อง พร้อมบันทึกข้อมูลเข้า Google Sheets อัตโนมัติ</p>
+     </div>
+     <div class="tracking-indicator flex shrink-0 items-center gap-3 text-sm font-semibold" id="tracking-indicator" aria-hidden="true">
+      <div class="relative flex h-10 w-10 items-center justify-center">
+       <span class="pulse-ring absolute inset-0 rounded-full bg-emerald-600"></span> <i data-lucide="crosshair" class="relative h-5 w-5"></i>
+      </div><span style="color: rgb(39, 123, 87); font-weight: 600; font-size: 14px;">สถานะระบบเชื่อมต่อ</span>
+     </div>
+    </div>
+   </header>
+   <main class="app-content pt-8">
+    <section class="status-panel rounded-3xl p-6 sm:p-8" aria-labelledby="status-heading" style="background: rgb(232, 243, 236);">
+     <div class="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div>
+       <p class="eyebrow mb-3" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">สถานะการติดตาม</p>
+       <h2 id="status-heading" class="heading-font m-0 text-3xl leading-tight" style="color: rgb(20, 35, 31); font-weight: 700; font-size: 24px;">ตำแหน่งของคุณตอนนี้</h2>
+       <div class="mt-5" aria-live="polite">
+        <div id="status-idle" class="status-badge is-active" style="background: rgb(225, 230, 227); color: rgb(82, 97, 92); font-weight: 700; font-size: 15px;">ยังไม่ได้เริ่มติดตาม</div>
+        <div id="status-still" class="status-badge" style="background: rgb(216, 241, 225); color: rgb(30, 106, 71); font-weight: 700; font-size: 15px;">● ยังอยู่ที่เดิม</div>
+        <div id="status-moving" class="status-badge" style="background: rgb(255, 234, 215); color: rgb(185, 82, 22); font-weight: 700; font-size: 15px;">● กำลังเคลื่อนที่</div>
+       </div>
+       <p id="status-message" class="mt-5 max-w-xl text-sm leading-6 text-slate-600" aria-live="polite">กรุณาระบุรหัสพนักงานและกดเริ่มติดตาม</p>
+      </div>
+      <div class="flex flex-col gap-3 sm:flex-row lg:flex-col">
+       <button id="start-button" type="button" class="btn-primary focus-ring inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold shadow-sm" style="background: rgb(39, 123, 87); color: rgb(255, 255, 255);"> <i data-lucide="play" class="h-4 w-4"></i> <span style="font-size: 16px;">เริ่มติดตาม</span> </button> 
+       <button id="stop-button" type="button" class="focus-ring hidden items-center justify-center gap-2 rounded-xl border px-5 py-3 font-bold transition hover:bg-slate-100" style="background: rgb(255, 255, 255); color: rgb(52, 69, 62);"> <i data-lucide="square" class="h-4 w-4"></i> <span style="font-size: 16px;">หยุดติดตาม</span> </button>
+      </div>
+     </div>
+    </section>
+    <section class="mt-6 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]" aria-label="การตั้งค่าและข้อมูลตำแหน่ง">
+     <aside class="rounded-2xl border p-6 shadow-sm" style="background: rgb(255, 255, 255);">
+      <div class="flex items-center gap-3">
+       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+        <i data-lucide="sliders-horizontal" class="h-5 w-5"></i>
+       </div>
+       <div>
+        <h2 class="m-0 font-bold" style="color: rgb(20, 35, 31); font-size: 18px;">ข้อมูลพนักงาน</h2>
+        <p class="mt-1 text-sm leading-5" style="color: rgb(96, 113, 108);">ระบุรหัสเพื่อบันทึกข้อมูลลงชีต</p>
+       </div>
+      </div>
+      <form id="threshold-form" class="mt-6">
+       <label for="employee-id-input" class="block text-sm font-bold" style="color: rgb(36, 54, 47); font-size: 14px;">รหัสพนักงาน</label>
+       <input id="employee-id-input" class="focus-ring mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800" type="text" maxlength="40" autocomplete="off" placeholder="เช่น EMP001">
+       <p class="mt-2 text-sm leading-6" style="color: rgb(96, 113, 108); font-size: 14px;">ข้อมูลพนักงานนี้จะถูกส่งไปพร้อมกับพิกัด GPS</p>
+       
+       <!-- ซ่อนค่า Threshold ไว้แต่ยังคงโค้ดไว้คำนวณ -->
+       <div class="hidden">
+        <input id="threshold-input" type="number" value="20">
+       </div>
+      </form>
+      <div class="mt-6 rounded-xl p-4" style="background: rgb(241, 246, 243); color: rgb(39, 123, 87);">
+       <div class="flex gap-3">
+        <i data-lucide="shield-check" class="mt-0.5 h-5 w-5 shrink-0"></i>
+        <p class="m-0 text-sm leading-6" style="color: rgb(56, 97, 77);">ระบบจะส่งข้อมูลพิกัดและสถานะไปยัง Google Sheets ทุกครั้งที่มีการอัปเดตตำแหน่ง</p>
+       </div>
+      </div>
+     </aside>
+     <section class="rounded-2xl border p-6 shadow-sm" style="background: rgb(255, 255, 255);" aria-labelledby="metrics-heading">
+      <div class="mb-5 flex items-center justify-between gap-4">
+       <div>
+        <p class="eyebrow mb-1" style="color: rgb(39, 123, 87); font-weight: 700; font-size: 16px; letter-spacing: 0.12rem;">LIVE READOUT</p>
+        <h2 id="metrics-heading" class="m-0 font-bold" style="color: rgb(20, 35, 31); font-size: 18px;">รายละเอียดตำแหน่ง</h2>
+       </div><i data-lucide="map-pinned" class="h-6 w-6 text-emerald-700" aria-hidden="true"></i>
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">รหัสพนักงาน</p>
+        <p id="employee-value" class="metric-value mt-3 text-xl font-bold">—</p>
+       </article>
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">ละติจูด</p>
+        <p id="latitude-value" class="metric-value mt-3 text-xl font-bold">—</p>
+       </article>
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">ลองจิจูด</p>
+        <p id="longitude-value" class="metric-value mt-3 text-xl font-bold">—</p>
+       </article>
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">ความแม่นยำ</p>
+        <p id="accuracy-value" class="metric-value mt-3 text-xl font-bold">—</p>
+       </article>
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">ระยะทางสะสม</p>
+        <p id="distance-value" class="metric-value mt-3 text-xl font-bold">0 ม.</p>
+       </article>
+       <article class="metric-card rounded-xl p-4" style="background: rgb(249, 251, 250);">
+        <p class="m-0 text-xs font-bold uppercase tracking-wider" style="color: rgb(104, 121, 114);">สถานะการส่งข้อมูล</p>
+        <p id="sync-status" class="metric-value mt-3 text-sm font-bold text-emerald-600">พร้อมใช้งาน</p>
+       </article>
+      </div>
+     </section>
+    </section>
+   </main>
+  </div>
+
+  <script>
+    (() => {
+      // ⚠️ นำ URL จาก Google Apps Script (Web App) มาใส่ตรงนี้
+      const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx9JW6qXs8B6fA7xlU3mVgXAQrgkeUaWjDPqkB6ZKGBDZbfHwSZAr257p-Xw80db3Ls/exec";
+
+      const state = {
+        watchId: null,
+        employeeId: '',
+        isTracking: false,
+        referencePoint: null,
+        totalDistance: 0
+      };
+
+      const elements = {
+        start: document.getElementById('start-button'),
+        stop: document.getElementById('stop-button'),
+        threshold: document.getElementById('threshold-input'),
+        message: document.getElementById('status-message'),
+        indicator: document.getElementById('tracking-indicator'),
+        latitude: document.getElementById('latitude-value'),
+        longitude: document.getElementById('longitude-value'),
+        accuracy: document.getElementById('accuracy-value'),
+        distance: document.getElementById('distance-value'),
+        syncStatus: document.getElementById('sync-status'),
+        employeeInput: document.getElementById('employee-id-input'),
+        employeeValue: document.getElementById('employee-value'),
+        badges: {
+          idle: document.getElementById('status-idle'),
+          still: document.getElementById('status-still'),
+          moving: document.getElementById('status-moving')
+        }
+      };
+
+      function setStatus(status, message) {
+        Object.entries(elements.badges).forEach(([name, badge]) => {
+          badge.classList.toggle('is-active', name === status);
+        });
+        elements.message.textContent = message;
+      }
+
+      function setTrackingControls(isTracking) {
+        state.isTracking = isTracking;
+        elements.start.classList.toggle('hidden', isTracking);
+        elements.stop.classList.toggle('hidden', !isTracking);
+        elements.start.classList.toggle('inline-flex', !isTracking);
+        elements.stop.classList.toggle('inline-flex', isTracking);
+        elements.indicator.classList.toggle('is-tracking', isTracking);
+      }
+
+      function getThreshold() {
+        return Number(elements.threshold.value) || 20;
+      }
+
+      function haversineMeters(pointA, pointB) {
+        const earthRadius = 6371000;
+        const toRadians = degrees => degrees * Math.PI / 180;
+        const latitudeDelta = toRadians(pointB.latitude - pointA.latitude);
+        const longitudeDelta = toRadians(pointB.longitude - pointA.longitude);
+        const a =
+          Math.sin(latitudeDelta / 2) ** 2 +
+          Math.cos(toRadians(pointA.latitude)) *
+          Math.cos(toRadians(pointB.latitude)) *
+          Math.sin(longitudeDelta / 2) ** 2;
+        return earthRadius * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+      }
+
+      function formatMeters(value) {
+        if (value >= 1000) return (value / 1000).toFixed(2) + ' กม.';
+        return Math.round(value) + ' ม.';
+      }
+
+      // ฟังก์ชันส่งข้อมูลไปยัง Google Sheets (ผ่าน Google Apps Script)
+      function sendDataToGoogleSheet(point, msg) {
+        if (!WEB_APP_URL || WEB_APP_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+          elements.syncStatus.textContent = "ยังไม่ได้ตั้งค่า URL";
+          return;
+        }
+
+        const payload = {
+          employeeId: state.employeeId,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          accuracy: point.accuracy,
+          totalDistance: state.totalDistance,
+          message: msg,
+          timestamp: new Date().toISOString()
+        };
+
+        elements.syncStatus.textContent = "กำลังซิงค์...";
+
+        fetch(WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(() => {
+          elements.syncStatus.textContent = "บันทึกแล้ว ✓";
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          elements.syncStatus.textContent = "ซิงค์ไม่สำเร็จ";
+        });
+      }
+
+      function handlePosition(position) {
+        const point = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        };
+        const threshold = getThreshold();
+
+        elements.latitude.textContent = point.latitude.toFixed(6) + '°';
+        elements.longitude.textContent = point.longitude.toFixed(6) + '°';
+        elements.accuracy.textContent = '± ' + Math.round(point.accuracy) + ' ม.';
+
+        let statusMsg = "";
+
+        if (!state.referencePoint) {
+          state.referencePoint = point;
+          elements.distance.textContent = '0 ม.';
+          statusMsg = 'ตั้งจุดอ้างอิงล่าสุดแล้ว กำลังตรวจสอบการเปลี่ยนแปลงตำแหน่ง';
+          setStatus('still', statusMsg);
+          sendDataToGoogleSheet(point, statusMsg);
+          return;
+        }
+
+        const referenceDistance = haversineMeters(state.referencePoint, point);
+
+        if (referenceDistance > threshold) {
+          state.totalDistance += referenceDistance;
+          state.referencePoint = point;
+          elements.distance.textContent = formatMeters(state.totalDistance);
+          statusMsg = 'ตรวจพบการเคลื่อนที่เกินเกณฑ์ ' + threshold + ' เมตร';
+          setStatus('moving', statusMsg);
+          sendDataToGoogleSheet(point, statusMsg);
+        } else {
+          elements.distance.textContent = formatMeters(state.totalDistance);
+          statusMsg = 'ตำแหน่งยังอยู่ในระยะความคลาดเคลื่อน';
+          setStatus('still', statusMsg);
+          // ส่งข้อมูลเป็นระยะ หรือส่งทุกครั้งที่มีการขยับ
+          sendDataToGoogleSheet(point, statusMsg);
+        }
+      }
+
+      function handleError(error) {
+        setTrackingControls(false);
+        if (state.watchId !== null) {
+          navigator.geolocation.clearWatch(state.watchId);
+          state.watchId = null;
+        }
+        const messages = {
+          1: 'ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาอนุญาตสิทธิ์ GPS',
+          2: 'ไม่สามารถอ่านตำแหน่งปัจจุบันได้ โปรดตรวจสอบสัญญาณ',
+          3: 'การอ่านตำแหน่งใช้เวลานานเกินไป'
+        };
+        setStatus('idle', messages[error.code] || 'เกิดข้อผิดพลาดขณะอ่านตำแหน่ง');
+      }
+
+      function startTracking() {
+        const employeeId = elements.employeeInput.value.trim();
+        if (!employeeId) {
+          setStatus('idle', 'กรุณาระบุรหัสพนักงานก่อนเริ่มติดตาม');
+          elements.employeeInput.focus();
+          return;
+        }
+        state.employeeId = employeeId;
+        elements.employeeValue.textContent = employeeId;
+
+        if (!('geolocation' in navigator)) {
+          setStatus('idle', 'เบราว์เซอร์นี้ไม่รองรับการอ่านตำแหน่งด้วย GPS');
+          return;
+        }
+
+        state.referencePoint = null;
+        state.totalDistance = 0;
+        elements.distance.textContent = '0 ม.';
+        setTrackingControls(true);
+        setStatus('still', 'กำลังขอสิทธิ์และค้นหาตำแหน่งปัจจุบัน…');
+
+        state.watchId = navigator.geolocation.watchPosition(handlePosition, handleError, {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 20000
+        });
+      }
+
+      function stopTracking() {
+        if (state.watchId !== null) {
+          navigator.geolocation.clearWatch(state.watchId);
+          state.watchId = null;
+        }
+        setTrackingControls(false);
+        setStatus('idle', 'หยุดติดตามแล้ว');
+      }
+
+      elements.employeeInput.addEventListener('input', () => {
+        state.employeeId = elements.employeeInput.value.trim();
+        elements.employeeValue.textContent = state.employeeId || '—';
+      });
+
+      elements.start.addEventListener('click', startTracking);
+      elements.stop.addEventListener('click', stopTracking);
+
+      lucide.createIcons();
+    })();
+  </script>
+</body>
+</html>
